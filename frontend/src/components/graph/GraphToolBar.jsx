@@ -8,9 +8,15 @@ export default function GraphToolbar({
   onLoadClick,
   isDirected,
   setIsDirected,
+  onRunDijkstra,
+  onRunMST,
+  disableDirected,
 }) {
   return (
-    <div className="graph-toolbar ui-layer absolute top-4 right-4 flex gap-2 p-2 rounded z-[5000]" style={{ pointerEvents: "auto" }}>
+    <div
+      className="graph-toolbar ui-layer absolute top-4 right-4 flex gap-2 p-2 rounded z-[1000]"
+      style={{ pointerEvents: "auto" }}
+    >
       <button
         onClick={() => setMode("pan")}
         className={`px-3 py-2 rounded ${mode === "pan" ? "bg-blue-700" : "bg-gray-800"}`}
@@ -43,13 +49,33 @@ export default function GraphToolbar({
         <input
           type="checkbox"
           checked={isDirected}
+          disabled={disableDirected}
           onChange={(e) => setIsDirected(e.target.checked)}
         />
         Directed
       </label>
 
-      <button onClick={onSaveClick} className="px-3 py-2 rounded bg-green-600">Save</button>
-      <button onClick={onLoadClick} className="px-3 py-2 rounded bg-teal-600">Load</button>
+      <button onClick={onSaveClick} className="px-3 py-2 rounded bg-green-600">
+        Save
+      </button>
+
+      <button onClick={onLoadClick} className="px-3 py-2 rounded bg-teal-600">
+        Load
+      </button>
+
+      <button
+        onClick={onRunDijkstra}
+        className="px-3 py-2 rounded bg-purple-600"
+      >
+        Dijkstra
+      </button>
+
+      <button
+        onClick={onRunMST}
+        className="px-3 py-2 rounded bg-orange-600"
+      >
+        MST
+      </button>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import GraphContextMenu from "../components/graph/GraphContextMenu";
 import SaveGraphModal from "../components/graph/SaveGraphModal";
 import LoadGraphModal from "../components/graph/LoadGraphModal";
 import { saveGraph } from "../api/graphApi";
+import { runAlgorithm } from "../api/algorithmApi";
 
 // If you want arrowheads, install leaflet-polylinedecorator and uncomment:
 // import "leaflet-polylinedecorator";
@@ -114,7 +115,16 @@ export default function MapPage({ user, setUser }) {
         setEdgeFromKey(node.key);
       } else {
         if (edgeFromKey !== node.key) {
-          setEdges((es) => [...es, { from: edgeFromKey, to: node.key, weight: 1, properties: {} }]);
+          setEdges((es) => [...es,
+              {
+                id: crypto.randomUUID(),
+               from: edgeFromKey,
+                to: node.key,
+                weight: 1,
+                properties: {},
+              },
+            ]);
+
         }
         setEdgeFromKey(null);
       }
@@ -195,11 +205,19 @@ export default function MapPage({ user, setUser }) {
 
   // edge editing and connection changes
   const editEdge = (edge) => {
-    const newW = window.prompt("Edge weight:", edge.weight ?? 1);
-    if (newW === null) return;
-    setEdges((arr) => arr.map((ed) => (ed.from === edge.from && ed.to === edge.to ? { ...ed, weight: Number(newW) || 1 } : ed)));
-    setContext(null);
-  };
+  const newW = window.prompt("Edge weight:", edge.weight ?? 1);
+  if (newW === null) return;
+
+  setEdges((arr) =>
+    arr.map((ed) =>
+      ed.id === edge.id
+        ? { ...ed, weight: Number(newW) || 1 }
+        : ed
+    )
+  );
+  setContext(null);
+};
+
 
   const changeEdgeConnection = (edge) => {
     const which = window.prompt("Change 'from' or 'to'?", "to");
@@ -297,14 +315,22 @@ export default function MapPage({ user, setUser }) {
       nodes,
       edges,
     });
-
-    // set map view if coordinates available
-    if (mapRef.current && (g.center_lat || g.center_lng || g.zoom)) {
-      try {
-        mapRef.current.setView([Number(g.center_lat || 8.224), Number(g.center_lng || 124.245)], Number(g.zoom || 14));
-      } catch (err) {}
-    }
   };
+    useEffect(() => {
+    if (!mapRef.current) return;
+
+    const c = graphState.center;
+    mapRef.current.setView([c.lat, c.lng], c.zoom, {
+    animate: true,
+  });
+}, 
+ [graphState.center.lat, 
+  graphState.center.lng, 
+  graphState.center.zoom
+]);
+
+
+
 
   // edge rendering decorator for arrowheads (only runs if plugin present)
   useEffect(() => {
@@ -358,12 +384,108 @@ export default function MapPage({ user, setUser }) {
 
   // color by node type
   const getColorForNode = (node) => nodeTypeColor[node.meta?.type] || nodeTypeColor.junction;
+  const isHighlighted = (edge) => {
+  return highlightedEdges.some(
+    (he) =>
+      (he.from === edge.from && he.to === edge.to) ||
+      (!graphState.isDirected &&
+        he.from === edge.to &&
+        he.to === edge.from)
+  );
+};
+
 
   // close context
   const closeContext = () => setContext(null);
 
   // disable directed toggle if edges already exist
   const disableDirectedToggle = graphState.edges.length > 0;
+
+const clearGraph = () => {
+  if (!window.confirm("Clear all nodes and edges?")) return;
+
+  setGraphState((g) => ({
+    ...g,
+    nodes: [],
+    edges: [],
+  }));
+};
+
+const [highlightedEdges, setHighlightedEdges] = useState([]);
+const [algorithmResult, setAlgorithmResult] = useState(null);
+
+
+
+async function runDijkstra(startNodeKey) {
+  const payload = {
+    algorithm: "dijkstra",
+    start: startNodeKey,
+    is_directed: graphState.isDirected,
+    nodes: graphState.nodes.map(n => n.key),
+    edges: graphState.edges.map(e => ({
+      from: e.from,
+      to: e.to,
+      weight: e.weight ?? 1,
+    })),
+  };
+
+  const res = await runAlgorithm(payload);
+
+  if (res.error) {
+    alert(res.error);
+    return;
+  }
+
+  // pick shortest path to all nodes OR later let user choose target
+  setAlgorithmResult(res.results);
+
+  // flatten all shortest-path edges into highlight list
+  const edgesToHighlight = [];
+  Object.values(res.results).forEach(r => {
+    if (!r || !r.path) return;
+    for (let i = 0; i < r.path.length - 1; i++) {
+      edgesToHighlight.push({
+        from: r.path[i],
+        to: r.path[i + 1],
+      });
+    }
+  });
+
+  setHighlightedEdges(edgesToHighlight);
+}
+
+async function runMST() {
+  if (graphState.isDirected) {
+    alert("MST only works on undirected graphs.");
+    return;
+  }
+
+  const payload = {
+    algorithm: "mst",
+    nodes: graphState.nodes.map(n => n.key),
+    edges: graphState.edges.map(e => ({
+      from: e.from,
+      to: e.to,
+      weight: e.weight ?? 1,
+    })),
+  };
+
+  const res = await runAlgorithm(payload);
+
+  if (res.error) {
+    alert(res.error);
+    return;
+  }
+
+  setAlgorithmResult(res);
+  setHighlightedEdges(res.edges); // already [{from,to,weight}]
+}
+
+useEffect(() => {
+  setHighlightedEdges([]);
+  setAlgorithmResult(null);
+}, [graphState.nodes.length, graphState.edges.length]);
+
 
   return (
     <div className="flex h-screen bg-[#0d0d0d]">
@@ -389,8 +511,14 @@ export default function MapPage({ user, setUser }) {
               }
               setGraphState((g) => ({ ...g, isDirected: v }));
             }}
-            disableDirected={disableDirectedToggle}
-          />
+                disableDirected={disableDirectedToggle}
+            onRunDijkstra={() => {
+              const start = prompt("Start node key:");
+              if (start) runDijkstra(start);
+            }}
+            onRunMST={runMST}
+            />
+
         </div>
 
         {/* MAP */}
@@ -414,17 +542,20 @@ export default function MapPage({ user, setUser }) {
             if (!fromNode || !toNode) return null;
             // thicker stroke = base weight * 2 (min 3)
             const stroke = Math.max(3, (edge.weight || 1) * 2);
+            
+            const highlighted = isHighlighted(edge);
+
             return (
               <GraphEdge
-                 key={`${i}-${edge.from}-${edge.to}`}
-                 edge={edge}
-                 fromNode={fromNode}
-                 toNode={toNode}
-                 color={graphState.isDirected ? "#f97316" : "#06b6d4"}
-                 isDirected={graphState.isDirected}
-                 onContextMenu={(ed, e) => handleEdgeContext(edge, e)}
-            />
-
+                key={edge.id}
+                edge={edge}
+                fromNode={fromNode}
+                toNode={toNode}
+                color={highlighted ? "#ef4444" : graphState.isDirected ? "#f97316" : "#06b6d4"} // 🔴 red
+                weight={highlighted ? 6 : stroke}
+                isDirected={graphState.isDirected}
+                onContextMenu={(ed, e) => handleEdgeContext(edge, e)}
+               />
             );
           })}
 
@@ -456,6 +587,7 @@ export default function MapPage({ user, setUser }) {
           onDeleteEdge={deleteEdge}
           onClose={closeContext}
         />
+        
 
         {/* Save / Load modals */}
         {saveOpen && (

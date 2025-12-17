@@ -25,11 +25,15 @@ $conn = getDB();
 
 // Fetch graph main record
 $stmt = $conn->prepare("
-    SELECT id, owner_id, name, is_directed, center_lat, center_lng, zoom, metadata,
+    SELECT id, owner_id, name, is_directed,
+           center_lat, center_lng, zoom,
+           rotation, tilt,
+           metadata,
            created_at, updated_at
     FROM graphs 
     WHERE id = ?
 ");
+
 $stmt->execute([$graph_id]);
 $graph = $stmt->fetch(PDO::FETCH_ASSOC);
 

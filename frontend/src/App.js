@@ -10,6 +10,7 @@ import MapPage from "./pages/MapPage";
 
 import "./index.css";
 
+
 function App() {
   const [user, setUser] = useState(undefined);
   const [loading, setLoading] = useState(true);
@@ -30,7 +31,11 @@ function App() {
     return <div className="flex items-center justify-center min-h-screen text-white">Loading...</div>;
   }
 
-  const handleLoginSuccess = (u) => setUser(u);
+  const handleLoginSuccess = async () => {
+  const u = await getCurrentUser();
+  setUser(u);
+};
+
 
   return (
     <Router>

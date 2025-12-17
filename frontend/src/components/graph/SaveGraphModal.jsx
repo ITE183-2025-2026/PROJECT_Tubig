@@ -15,7 +15,7 @@ export default function SaveGraphModal({ onClose, getGraphState }) {
   const payload = {
     graph_id: graph.graph_id || null,
     name,
-    is_directed: graph.isDirected,
+    is_directed: graph.isDirected ? 1:0 ,
 
     // Use SAFE center values
     center_lat: center.lat,
