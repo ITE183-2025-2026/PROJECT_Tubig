@@ -235,7 +235,7 @@ export default function MapPage({ user, setUser }) {
 
   const deleteEdge = (edge) => {
     if (!window.confirm("Delete this edge?")) return;
-    setEdges((arr) => arr.filter((ed) => !(ed.from === edge.from && ed.to === edge.to)));
+    setEdges(arr => arr.filter(ed => ed.id !== edge.id));
     setContext(null);
   };
 
@@ -296,6 +296,7 @@ export default function MapPage({ user, setUser }) {
       meta: n.meta || { type: "junction" },
     }));
     const edges = (res.edges || []).map((e) => ({
+      id: crypto.randomUUID(),
       from: e.from,
       to: e.to,
       weight: Number(e.weight || 1),
